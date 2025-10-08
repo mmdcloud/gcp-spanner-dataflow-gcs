@@ -1,7 +1,11 @@
+# -------------------------------------------------------------------------------
 # Project settings
+# -------------------------------------------------------------------------------
 data "google_project" "project" {}
 
+# -------------------------------------------------------------------------------
 # Cloud Spanner 
+# -------------------------------------------------------------------------------
 module "spanner" {
   source                       = "./modules/cloud-spanner"
   name                         = "spanner-instance"
@@ -25,7 +29,9 @@ module "spanner" {
   ]
 }
 
+# -------------------------------------------------------------------------------
 # GCS
+# -------------------------------------------------------------------------------
 module "destination_bucket" {
   source   = "./modules/gcs"
   location = var.location
@@ -43,22 +49,14 @@ module "destination_bucket" {
   uniform_bucket_level_access = true
 }
 
-# Create Cloud Storage bucket for Dataflow temp files if it doesn't exist
-resource "google_storage_bucket" "dataflow_temp_bucket" {
-  name          = "madmax-dataflow-temp-bucket"
-  location      = var.location
-  force_destroy = true
-
-  uniform_bucket_level_access = true
-}
-
-# Service account for Dataflow jobs
+# -------------------------------------------------------------------------------
+# Service account and IAM roles
+# -------------------------------------------------------------------------------
 resource "google_service_account" "dataflow_service_account" {
   account_id   = "dataflow-cdc-sa"
   display_name = "Dataflow CDC Service Account"
 }
 
-# Grant necessary permissions to the service account
 resource "google_project_iam_member" "dataflow_worker" {
   project = data.google_project.project.project_id
   role    = "roles/dataflow.worker"
@@ -75,6 +73,17 @@ resource "google_project_iam_member" "spanner_reader" {
   project = data.google_project.project.project_id
   role    = "roles/spanner.databaseReader"
   member  = "serviceAccount:${google_service_account.dataflow_service_account.email}"
+}
+
+# -------------------------------------------------------------------------------
+# Dataflow CDC configuration
+# -------------------------------------------------------------------------------
+resource "google_storage_bucket" "dataflow_temp_bucket" {
+  name          = "madmax-dataflow-temp-bucket"
+  location      = var.location
+  force_destroy = true
+
+  uniform_bucket_level_access = true
 }
 
 module "spanner_to_gcs_cdc" {
