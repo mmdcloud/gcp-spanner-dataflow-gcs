@@ -3,6 +3,28 @@
 # -------------------------------------------------------------------------------
 data "google_project" "project" {}
 
+#---------------------------------------------------------------
+# VPC Configuration
+#---------------------------------------------------------------
+module "vpc" {
+  source                          = "./modules/vpc"
+  vpc_name                        = "vpc"
+  delete_default_routes_on_create = false
+  auto_create_subnetworks         = false
+  routing_mode                    = "REGIONAL"
+  subnets = [
+    {
+      name                     = "vpc-subnet"
+      region                   = var.location
+      purpose                  = "PRIVATE"
+      role                     = "ACTIVE"
+      private_ip_google_access = true
+      ip_cidr_range            = var.vpc_subnet_cidr
+    }
+  ]
+  firewall_data = []
+}
+
 # -------------------------------------------------------------------------------
 # Cloud Spanner 
 # -------------------------------------------------------------------------------
@@ -78,11 +100,12 @@ resource "google_project_iam_member" "spanner_reader" {
 # -------------------------------------------------------------------------------
 # Dataflow CDC configuration
 # -------------------------------------------------------------------------------
-resource "google_storage_bucket" "dataflow_temp_bucket" {
-  name          = "madmax-dataflow-temp-bucket"
-  location      = var.location
-  force_destroy = true
-
+module "dataflow_temp_bucket" {
+  source                      = "./modules/gcs"
+  location                    = var.location
+  name                        = "madmax-dataflow-temp-bucket"
+  cors                        = []
+  force_destroy               = true
   uniform_bucket_level_access = true
 }
 
@@ -90,8 +113,10 @@ module "spanner_to_gcs_cdc" {
   source                = "./modules/dataflow"
   name                  = "spanner-to-gcs"
   template_gcs_path     = "gs://dataflow-templates-us-central1/latest/Spanner_to_GCS_Text"
-  temp_gcs_location     = "gs://${google_storage_bucket.dataflow_temp_bucket.name}/temp"
+  temp_gcs_location     = "gs://${module.dataflow_temp_bucket.bucket_name}/temp"
   service_account_email = google_service_account.dataflow_service_account.email
+  network               = module.vpc.vpc_id
+  subnetwork            = module.vpc.subnets[0].self_link
   parameters = {
     spannerTable      = "users"
     spannerProjectId  = "${data.google_project.project.project_id}"
@@ -99,4 +124,7 @@ module "spanner_to_gcs_cdc" {
     spannerDatabaseId = "cdc-db"
     textWritePrefix   = "gs://${module.destination_bucket.bucket_name}/"
   }
+  additional_experiments = [
+    "enable_preflight_validation"
+  ]
 }
