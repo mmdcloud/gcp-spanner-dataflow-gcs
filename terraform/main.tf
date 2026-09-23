@@ -55,9 +55,10 @@ module "spanner" {
 # GCS
 # -------------------------------------------------------------------------------
 module "destination_bucket" {
-  source   = "./modules/gcs"
-  location = var.location
-  name     = "spanner-cdc-bucket"
+  source     = "./modules/gcs"
+  project_id = var.project_id
+  location   = var.location
+  name       = "spanner-cdc-bucket"
   cors = [
     {
       origin          = ["*"]
@@ -102,6 +103,7 @@ resource "google_project_iam_member" "spanner_reader" {
 # -------------------------------------------------------------------------------
 module "dataflow_temp_bucket" {
   source                      = "./modules/gcs"
+  project_id                  = var.project_id
   location                    = var.location
   name                        = "madmax-dataflow-temp-bucket"
   cors                        = []
