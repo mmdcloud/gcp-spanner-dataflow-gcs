@@ -1,0 +1,12 @@
+gcloud dataflow jobs run spanner-to-gcs-manual \
+  --gcs-location gs://dataflow-templates-us-central1/latest/Spanner_to_GCS_Text \
+  --region us-central1 \
+  --service-account-email $(terraform output -raw dataflow_service_account) \
+  --subnetwork $(terraform output -raw subnetwork) \
+  --staging-location $(terraform output -raw temp_gcs_location) \
+  --parameters \
+spannerTable="users",\
+spannerProjectId="$(gcloud config get-value project)",\
+spannerInstanceId="$(terraform output -raw spanner_instance_id)",\
+spannerDatabaseId="cdc-db",\
+textWritePrefix="$(terraform output -raw destination_bucket)"
